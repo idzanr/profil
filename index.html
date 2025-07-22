@@ -18,6 +18,7 @@
     .delete-btn { background-color: #dc3545; color: white; }
     #pinWaliKelas { display: none; }
     #grafikContainer { margin-top: 40px; }
+    #logoutBtn { display: none; background: #6c757d; color: white; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -37,6 +38,8 @@
       <input type="password" id="pin" placeholder="******">
       <button onclick="verifikasiPin()">Verifikasi</button>
     </div>
+
+    <button id="logoutBtn" onclick="logout()">Logout</button>
 
     <div id="formAbsensi">
       <label for="nama">Nama Siswa:</label>
@@ -195,16 +198,19 @@
       const formAbsensi = document.getElementById('formAbsensi');
       const btnExport = document.getElementById('btnExport');
       const pinForm = document.getElementById('pinWaliKelas');
+      const logoutBtn = document.getElementById('logoutBtn');
 
       if (peran === 'walikelas') {
         pinForm.style.display = 'block';
         formAbsensi.style.display = 'none';
         btnExport.style.display = 'none';
+        logoutBtn.style.display = 'none';
       } else {
         isWaliKelas = false;
         pinForm.style.display = 'none';
         formAbsensi.style.display = 'none';
         btnExport.style.display = 'none';
+        logoutBtn.style.display = 'block';
         tampilkanData();
       }
     }
@@ -214,16 +220,29 @@
       const formAbsensi = document.getElementById('formAbsensi');
       const btnExport = document.getElementById('btnExport');
       const pinForm = document.getElementById('pinWaliKelas');
+      const logoutBtn = document.getElementById('logoutBtn');
       const pinBenar = "123456";
       if (pin === pinBenar) {
         isWaliKelas = true;
         pinForm.style.display = 'none';
         formAbsensi.style.display = 'block';
         btnExport.style.display = 'inline-block';
+        logoutBtn.style.display = 'block';
         tampilkanData();
       } else {
         alert("PIN salah. Silakan coba lagi.");
       }
+    }
+
+    function logout() {
+      document.getElementById('peran').value = '';
+      document.getElementById('pin').value = '';
+      document.getElementById('pinWaliKelas').style.display = 'none';
+      document.getElementById('formAbsensi').style.display = 'none';
+      document.getElementById('btnExport').style.display = 'none';
+      document.getElementById('logoutBtn').style.display = 'none';
+      isWaliKelas = false;
+      tampilkanData();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
