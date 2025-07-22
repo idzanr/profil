@@ -1,1 +1,235 @@
-halo cok
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Absensi Kelas</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #f0f0f0; padding: 20px; }
+    h1, h2 { text-align: center; }
+    .container { max-width: 700px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px #ccc; }
+    select, button, input[type="date"], input[type="text"], input[type="password"] { padding: 10px; margin: 5px 0; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    .export-btn { background: #28a745; color: white; border: none; cursor: pointer; }
+    .action-btn { padding: 4px 8px; margin: 2px; cursor: pointer; border: none; border-radius: 4px; }
+    .edit-btn { background-color: #007bff; color: white; }
+    .delete-btn { background-color: #dc3545; color: white; }
+    #pinWaliKelas { display: none; }
+    #grafikContainer { margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ABSENSI KEHADIRAN KELAS IX C SMP SULTAN AGUNG 1 TIRTOMOYO</h1>
+
+    <label for="peran">Masuk sebagai:</label>
+    <select id="peran" onchange="aturAkses()">
+      <option value="">-- Pilih Peran --</option>
+      <option value="walikelas">Wali Kelas</option>
+      <option value="ortu">Orang Tua</option>
+      <option value="siswa">Siswa</option>
+    </select>
+
+    <div id="pinWaliKelas">
+      <label for="pin">Masukkan PIN Wali Kelas:</label>
+      <input type="password" id="pin" placeholder="******">
+      <button onclick="verifikasiPin()">Verifikasi</button>
+    </div>
+
+    <div id="formAbsensi">
+      <label for="nama">Nama Siswa:</label>
+      <select id="nama">
+        <option value="">-- Pilih Nama --</option>
+      </select>
+      <label for="status">Status Kehadiran:</label>
+      <select id="status">
+        <option value="Hadir">Hadir</option>
+        <option value="Izin">Izin</option>
+        <option value="Sakit">Sakit</option>
+        <option value="Alpha">Alpha</option>
+      </select>
+      <button onclick="simpanAbsensi()">Simpan Absensi</button>
+    </div>
+
+    <button class="export-btn" id="btnExport" onclick="eksporCSV()">Download Rekap</button>
+
+    <h2>Laporan Kehadiran Harian</h2>
+    <label for="filterTanggal">Pilih Tanggal:</label>
+    <input type="date" id="filterTanggal" onchange="filterByDate()">
+
+    <table id="rekap">
+      <thead>
+        <tr>
+          <th>Nama</th>
+          <th>Status</th>
+          <th>Waktu</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div id="grafikContainer">
+      <h2>Grafik Kehadiran</h2>
+      <canvas id="grafikAbsensi"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const daftarNamaSiswa = [
+      "ADIL SYAH RIDHO", "AMMAR HAIDAR IMTIYAS", "ANGGA WAHYU SETIAWAN", "APRILIANA", "ARDAN AYYUP RIYASTA",
+      "ARIA WIBISANA", "ARJUNA REFFI MAHESA", "AULIA DESTI MAHARANI", "BAGUS YULI PRASETYO", "DEWI MAHARANI",
+      "DIAN USWATUN HASANAH", "DIMAS AHMAD WARDANA", "ERVIO DIMAS JANUAR", "FAIZATUL FATIMAH", "FANO IRAWAN",
+      "FINA NAILATUL IZZAH", "FITRIANA SARI", "GIVIAN RIDHO SYAMGUSTA", "IQNA MAULIDA", "MUHAMMAD YAYAN AFRIYAN",
+      "MUSTHOFA CAHYA KUSUMA", "NOVA WAHYU SAPUTRA", "RATNA ANANDITA", "REHANDIKA PRATAMA", "REZA GIRI SAPUTRA",
+      "RISKY NUR AHMAD", "SATRIA RAMADHAN", "YOVITA AISYAH CAHYANINGTYAS", "YUNITA DWI LESTARI", "ZAIDAN NUR HIDAYAT"
+    ];
+
+    const namaSelect = document.getElementById('nama');
+    daftarNamaSiswa.forEach(nama => {
+      const opt = document.createElement('option');
+      opt.value = nama;
+      opt.textContent = nama;
+      namaSelect.appendChild(opt);
+    });
+
+    const rekapBody = document.querySelector('#rekap tbody');
+    const ctx = document.getElementById('grafikAbsensi').getContext('2d');
+    let dataAbsensi = JSON.parse(localStorage.getItem('absensi')) || [];
+    let isWaliKelas = false;
+    let chart;
+
+    function tampilkanData(filteredData = null) {
+      const data = filteredData || dataAbsensi;
+      rekapBody.innerHTML = '';
+      data.forEach((entry, index) => {
+        rekapBody.innerHTML += `<tr>
+          <td>${entry.nama}</td>
+          <td>${entry.status}</td>
+          <td>${entry.waktu}</td>
+          <td>
+            <button class="action-btn edit-btn" onclick="editData(${index})">Edit</button>
+            ${isWaliKelas ? `<button class="action-btn delete-btn" onclick="hapusData(${index})">Hapus</button>` : ''}
+          </td>
+        </tr>`;
+      });
+      renderChart();
+    }
+
+    function renderChart() {
+      const count = { Hadir: 0, Izin: 0, Sakit: 0, Alpha: 0 };
+      dataAbsensi.forEach(item => count[item.status]++);
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(count),
+          datasets: [{
+            label: 'Jumlah Kehadiran',
+            data: Object.values(count),
+            backgroundColor: ['green', 'orange', 'blue', 'red']
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+
+    function simpanAbsensi() {
+      const nama = document.getElementById('nama').value;
+      const status = document.getElementById('status').value;
+      const waktu = new Date().toLocaleString();
+      if (!nama) return alert("Pilih nama siswa dulu!");
+      dataAbsensi.push({ nama, status, waktu });
+      localStorage.setItem('absensi', JSON.stringify(dataAbsensi));
+      tampilkanData();
+    }
+
+    function editData(index) {
+      const entry = dataAbsensi[index];
+      const newNama = prompt("Edit Nama:", entry.nama);
+      const newStatus = prompt("Edit Status (Hadir/Izin/Sakit/Alpha):", entry.status);
+      if (newNama && newStatus) {
+        dataAbsensi[index].nama = newNama;
+        dataAbsensi[index].status = newStatus;
+        localStorage.setItem('absensi', JSON.stringify(dataAbsensi));
+        tampilkanData();
+      }
+    }
+
+    function hapusData(index) {
+      if (!isWaliKelas) return alert("Hanya wali kelas yang bisa menghapus data.");
+      if (confirm("Yakin ingin menghapus data ini?")) {
+        dataAbsensi.splice(index, 1);
+        localStorage.setItem('absensi', JSON.stringify(dataAbsensi));
+        tampilkanData();
+      }
+    }
+
+    function eksporCSV() {
+      let csv = 'Nama,Status,Waktu\n';
+      dataAbsensi.forEach(row => {
+        csv += `${row.nama},${row.status},${row.waktu}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'rekap_absensi.csv';
+      a.click();
+    }
+
+    function filterByDate() {
+      const selectedDate = document.getElementById('filterTanggal').value;
+      if (!selectedDate) {
+        tampilkanData();
+        return;
+      }
+      const tanggalStr = new Date(selectedDate).toLocaleDateString();
+      const filtered = dataAbsensi.filter(item => item.waktu.startsWith(tanggalStr));
+      tampilkanData(filtered);
+    }
+
+    function aturAkses() {
+      const peran = document.getElementById('peran').value;
+      const formAbsensi = document.getElementById('formAbsensi');
+      const btnExport = document.getElementById('btnExport');
+      const pinForm = document.getElementById('pinWaliKelas');
+
+      if (peran === 'walikelas') {
+        pinForm.style.display = 'block';
+        formAbsensi.style.display = 'none';
+        btnExport.style.display = 'none';
+      } else {
+        isWaliKelas = false;
+        pinForm.style.display = 'none';
+        formAbsensi.style.display = 'none';
+        btnExport.style.display = 'none';
+        tampilkanData();
+      }
+    }
+
+    function verifikasiPin() {
+      const pin = document.getElementById('pin').value;
+      const formAbsensi = document.getElementById('formAbsensi');
+      const btnExport = document.getElementById('btnExport');
+      const pinForm = document.getElementById('pinWaliKelas');
+      const pinBenar = "123456";
+      if (pin === pinBenar) {
+        isWaliKelas = true;
+        pinForm.style.display = 'none';
+        formAbsensi.style.display = 'block';
+        btnExport.style.display = 'inline-block';
+        tampilkanData();
+      } else {
+        alert("PIN salah. Silakan coba lagi.");
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      tampilkanData();
+      aturAkses();
+    });
+  </script>
+</body>
+</html>
